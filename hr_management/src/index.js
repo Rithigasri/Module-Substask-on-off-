@@ -713,18 +713,33 @@ export async function offboardEmployee(payload) {
  * @param {Object} payload - { ticketNumber: string }
  */
 export async function createSubtasks(payload) {
+  console.log("=== createSubtasks called ===");
+  console.log("Payload received for createSubtasks:", payload);
+
   const { ticketNumber } = payload;
   if (!ticketNumber) {
+    console.error("❌ ticketNumber is required in payload.");
     return { status: "error", message: "ticketNumber is required" };
   }
 
   // 1. Fetch parent issue details
   const ISSUE_URL = `${JIRA_BASE_URL}/rest/api/3/issue/${ticketNumber}`;
+  console.log("Fetching parent issue from:", ISSUE_URL);
   const parentResp = await fetch(ISSUE_URL, { method: "GET", headers: getHeaders() });
   if (!parentResp.ok) {
-    return { status: "error", message: `Failed to fetch parent issue: ${parentResp.status}` };
+    const errorText = await parentResp.text();
+    console.error(`❌ Failed to fetch parent issue: ${parentResp.status} - ${errorText}`);
+    // Improved error message for not found or invalid ticket
+    if (parentResp.status === 404) {
+      return {
+        status: "error",
+        message: `The system couldn't find the issue by the provided ID or key (${ticketNumber}). Please verify the ticket number and try again. If the issue persists, contact your system administrator.`,
+      };
+    }
+    return { status: "error", message: `Failed to fetch parent issue: ${parentResp.status} - ${errorText}` };
   }
   const parentData = await parentResp.json();
+  console.log("Parent issue data:", JSON.stringify(parentData, null, 2));
   const empName = parentData.fields.summary || "Employee";
   const projectKey = parentData.fields.project.key;
   const empEmail = parentData.fields?.customfield_10404 || "";
@@ -759,7 +774,7 @@ export async function createSubtasks(payload) {
     },
     {
       summary: `Sending Loom Video through mail`,
-      description: toADF(`Name of employee: ${empName}\nEmail ID: ${empEmail}\nLoom video link: https://www.loom.com/`)
+      description: toADF(`${empEmail}`)
     }
   ];
 
@@ -774,17 +789,23 @@ export async function createSubtasks(payload) {
         issuetype: { name: "Sub-task" },
       },
     };
+    console.log("Creating subtask with payload:", JSON.stringify(subtaskPayload, null, 2));
     const createResp = await fetch(`${JIRA_BASE_URL}/rest/api/3/issue`, {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify(subtaskPayload),
     });
     if (!createResp.ok) {
-      return { status: "error", message: `Failed to create subtask: ${await createResp.text()}` };
+      const errorText = await createResp.text();
+      console.error(`❌ Failed to create subtask: ${createResp.status} - ${errorText}`);
+      return { status: "error", message: `Failed to create subtask: ${errorText}` };
     }
     const subtaskData = await createResp.json();
+    console.log(`✅ Subtask created: ${subtaskData.key}`);
     createdSubtasks.push(subtaskData.key);
   }
+
+  console.log("All subtasks created successfully:", createdSubtasks);
 
   return {
     status: "success",
