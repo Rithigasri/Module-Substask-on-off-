@@ -21,6 +21,7 @@ modules:
         - query-knowledge-base
         - assign-asset
         - offboard-employee
+        - create-Subtasks
   action:
     - key: onboard-employee
       name: Onboard Employee
@@ -83,6 +84,18 @@ modules:
           type: string
           required: true
           description: The Jira ticket number containing the employee to offboard.
+    - key: create-Subtasks
+      name: create-Subtasks
+      function: createSubtasks
+      actionVerb: GET
+      description: >
+        Creates two onboarding subtasks ("Email ID creation for <emp name>" and "Active Directory Account creation for <emp name>") for a given Jira ticket number, and links them to the parent ticket with the "relates to" relationship.
+      inputs:
+        ticketNumber:
+          title: Ticket Number
+          type: string
+          required: true
+          description: The Jira ticket number containing the employee to create subtasks.
   function:
     - key: onboardEmployee
       handler: index.onboardEmployee
@@ -94,6 +107,8 @@ modules:
       handler: index.assignAsset
     - key: offboardEmployee
       handler: index.offboardEmployee
+    - key: createSubtasks
+      handler: index.createSubtasks
 permissions:
   scopes:
     - read:confluence-content.summary
@@ -103,6 +118,7 @@ permissions:
     - read:confluence-space.summary
     - read:jira-work
     - read:page:confluence
+    - write:jira-work
   external:
     fetch:
       backend:

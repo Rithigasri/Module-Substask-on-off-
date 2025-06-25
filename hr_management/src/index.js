@@ -707,3 +707,88 @@ export async function offboardEmployee(payload) {
     message: `Employee offboarded: status set to DEACTIVATED and all assigned laptops deallocated and set to AVAILABLE.`,
   };
 }
+
+/**
+ * Create onboarding subtasks for a Jira ticket.
+ * @param {Object} payload - { ticketNumber: string }
+ */
+export async function createSubtasks(payload) {
+  const { ticketNumber } = payload;
+  if (!ticketNumber) {
+    return { status: "error", message: "ticketNumber is required" };
+  }
+
+  // 1. Fetch parent issue details
+  const ISSUE_URL = `${JIRA_BASE_URL}/rest/api/3/issue/${ticketNumber}`;
+  const parentResp = await fetch(ISSUE_URL, { method: "GET", headers: getHeaders() });
+  if (!parentResp.ok) {
+    return { status: "error", message: `Failed to fetch parent issue: ${parentResp.status}` };
+  }
+  const parentData = await parentResp.json();
+  const empName = parentData.fields.summary || "Employee";
+  const projectKey = parentData.fields.project.key;
+  const empEmail = parentData.fields?.customfield_10404 || "";
+
+  // 2. Prepare subtask payloads with descriptions (ADF format)
+  function toADF(text) {
+    return {
+      type: "doc",
+      version: 1,
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: text
+            }
+          ]
+        }
+      ]
+    };
+  }
+
+  const subtasks = [
+    {
+      summary: `Email ID creation for ${empName}`,
+      description: toADF("Create an email ID for the employee.")
+    },
+    {
+      summary: `Active Directory Account creation for ${empName}`,
+      description: toADF("Create an account in Active Directory for the employee.")
+    },
+    {
+      summary: `Sending Loom Video through mail`,
+      description: toADF(`Name of employee: ${empName}\nEmail ID: ${empEmail}\nLoom video link: https://www.loom.com/`)
+    }
+  ];
+
+  const createdSubtasks = [];
+  for (const { summary, description } of subtasks) {
+    const subtaskPayload = {
+      fields: {
+        project: { key: projectKey },
+        parent: { key: ticketNumber },
+        summary,
+        description,
+        issuetype: { name: "Sub-task" },
+      },
+    };
+    const createResp = await fetch(`${JIRA_BASE_URL}/rest/api/3/issue`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify(subtaskPayload),
+    });
+    if (!createResp.ok) {
+      return { status: "error", message: `Failed to create subtask: ${await createResp.text()}` };
+    }
+    const subtaskData = await createResp.json();
+    createdSubtasks.push(subtaskData.key);
+  }
+
+  return {
+    status: "success",
+    message: "Subtasks created.",
+    subtasks: createdSubtasks,
+  };
+}
