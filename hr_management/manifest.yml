@@ -1,0 +1,116 @@
+modules:
+  rovo:agent:
+    - key: employee-onboarding-offboarding
+      name: Employee Management
+      description: An agent for onboarding/offboarding employees using Jira tickets
+      prompt: >
+        You are an agent that helps manage employee onboarding and offboarding by creating and updating People assets from Jira tickets.
+        When a user's details are added by ticket number, trigger the "Onboard Employee" action to add them as a new employee.
+        For offboarding, when a user provides a ticket number for an employee leaving, trigger the "Offboard Employee" action to set their status to Inactive and deallocate their assets.
+        After onboarding, ask if the user wants to assign an asset to the employee as a follow-up question.
+        If they choose to assign an asset, guide them through the assignment process.
+        After assigning, ask if any other asset needs to be added for the employee.
+        If yes, help them add another asset. If not, thank the user and end the conversation.
+      conversationStarters:
+        - Onboard a new employee using a Jira ticket
+        - Offboard an employee using a Jira ticket
+        - Query available assets
+      actions:
+        - onboard-employee
+        - sync-to-confluence
+        - query-knowledge-base
+        - assign-asset
+        - offboard-employee
+  action:
+    - key: onboard-employee
+      name: Onboard Employee
+      function: onboardEmployee
+      actionVerb: GET
+      description: >
+        Adds a People asset to the object schema using details from the provided Jira ticket number.
+      inputs:
+        ticketNumber:
+          title: Ticket Number
+          type: string
+          required: true
+          description: |
+            The Jira ticket number (e.g., HR-77) to fetch employee details from.
+    - key: sync-to-confluence
+      name: Sync to Confluence
+      function: syncToConfluence
+      actionVerb: GET
+      description: >
+        Syncs all People and Asset objects to Confluence page 32309249.
+    - key: query-knowledge-base
+      name: Query Knowledge Base
+      function: queryKnowledgeBase
+      actionVerb: GET
+      description: >
+        Query the Confluence knowledge base and get an answer using Gemini while querying for available assets.
+      inputs:
+        query:
+          title: Query
+          type: string
+          required: true
+          description: |
+            The question or search term to query the knowledge base.
+    - key: assign-asset
+      name: Assign Asset
+      function: assignAsset
+      actionVerb: GET
+      description: >
+        Assigns a laptop asset (by name) to an employee (by email) if not already assigned.
+      inputs:
+        assetName:
+          title: Asset Name
+          type: string
+          required: true
+          description: The name of the laptop asset to assign.
+        email:
+          title: Employee Email
+          type: string
+          required: true
+          description: The email address of the employee to assign the asset to.
+    - key: offboard-employee
+      name: Offboard Employee
+      function: offboardEmployee
+      actionVerb: GET
+      description: >
+        Offboards an employee using a Jira ticket number. Sets the employee's status to Inactive and deallocates all laptops (removes Owner and sets status to Available) assigned to them.
+      inputs:
+        ticketNumber:
+          title: Ticket Number
+          type: string
+          required: true
+          description: The Jira ticket number containing the employee to offboard.
+  function:
+    - key: onboardEmployee
+      handler: index.onboardEmployee
+    - key: syncToConfluence
+      handler: index.syncToConfluence
+    - key: queryKnowledgeBase
+      handler: index.queryKnowledgeBase
+    - key: assignAsset
+      handler: index.assignAsset
+    - key: offboardEmployee
+      handler: index.offboardEmployee
+permissions:
+  scopes:
+    - read:confluence-content.summary
+    - write:page:confluence
+    - write:confluence-content
+    - read:confluence-content.all
+    - read:confluence-space.summary
+    - read:jira-work
+    - read:page:confluence
+  external:
+    fetch:
+      backend:
+        - https://api.atlassian.com
+        - https://one-atlas-tfft.atlassian.net
+        - https://one-atlas-tfft.atlassian.net/wiki
+        - https://generativelanguage.googleapis.com 
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/459ecce8-607b-40a5-8c8f-87a1ed1df635
